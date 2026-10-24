@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="本地优先的英语机考练习工具：阅读、听力、写作、精读、精听、错题复盘与词汇间隔复习。" />
+    <meta name="color-scheme" content="light" />
+    <title>英语机考模拟器</title>
+  </head>
+  <body>
+    <!-- 极简 polyfill：旧浏览器（Chrome/Edge 89~120）缺少这几个新 API，补上即可正常运行；
+         放在 module 之前，保证依赖它们的库（pdf.js 等）不会在启动阶段抛错。 -->
+    <script>
+      (function () {
+        if (typeof Promise !== 'undefined') {
+          if (!Promise.withResolvers) {
+            Promise.withResolvers = function () {
+              var resolve, reject;
+              var promise = new Promise(function (res, rej) { resolve = res; reject = rej; });
+              return { promise: promise, resolve: resolve, reject: reject };
+            };
+          }
+          if (!Promise.try) {
+            Promise.try = function (fn) {
+              var args = Array.prototype.slice.call(arguments, 1);
+              return new Promise(function (resolve) {
+                resolve(fn.apply(null, args));
+              });
+            };
+          }
+        }
+        if (typeof Uint8Array !== 'undefined' && !Uint8Array.fromBase64) {
+          Uint8Array.fromBase64 = function (b64) {
+            // 与 Web 规范对齐：空白/非法字符抛 SyntaxError（atob 会静默忽略空白、抛 DOMException）
+            if (typeof b64 !== 'string' || /[^A-Za-z0-9+/=]/.test(b64) || b64.length % 4 === 1
+                || (b64.indexOf('=') !== -1 && !/^[A-Za-z0-9+/]+={1,2}$/.test(b64))) {
+              throw new SyntaxError('Uint8Array.fromBase64: invalid base64 input');
+            }
+            var bin = atob(b64), out = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+            return out;
+          };
+          Uint8Array.prototype.toBase64 = function () {
+            var s = '';
+            for (var i = 0; i < this.length; i++) s += String.fromCharCode(this[i]);
+            return btoa(s);
+          };
+        }
+        // Chrome 89 缺 Array.prototype.at（92+），pdf.js 主线程代码大量使用
+        if (typeof Array !== 'undefined' && !Array.prototype.at) {
+          Array.prototype.at = function (n) {
+            var i = Math.trunc(n) || 0, len = this.length >>> 0;
+            if (i < 0) i += len;
+            return (i >= 0 && i < len) ? this[i] : undefined;
+          };
+        }
+      })();
+    </script>
+
+    <!-- 旧浏览器兜底提示：不支持 ES module（IE / 360 兼容模式）或长时间没渲染出界面时显示 -->
+    <div id="old-browser-notice" style="display:none;max-width:640px;margin:12vh auto;padding:28px 32px;border:1px solid #e6ebf2;border-radius:14px;background:#fff;font:15px/1.8 system-ui,'Segoe UI','Microsoft YaHei',sans-serif;color:#33475b">
+      <h1 style="margin:0 0 10px;font-size:20px;color:#12263f">需要较新的浏览器</h1>
+      <p style="margin:0 0 8px">这个页面用到了现代浏览器特性。请改用 <b>Chrome 89+</b> 或 <b>Edge 89+</b>（推荐最新版），然后重新打开本页面。</p>
+      <p style="margin:0;color:#8b98a8;font-size:13px">如果你正在用 IE 或 360 浏览器的“兼容模式”，请切换到“极速模式”，或直接换 Chrome / Edge。</p>
+    </div>
+    <script>
+      // ① 不支持 type="module" 的浏览器（IE、360 兼容模式）→ 直接提示
+      if (!('noModule' in HTMLScriptElement.prototype)) {
+        document.getElementById('old-browser-notice').style.display = 'block';
+        var r = document.getElementById('root'); if (r) r.style.display = 'none';
+      } else {
+        // ② 模块脚本加载/解析失败（旧浏览器 SyntaxError 等）→ 立即提示，不必等 6 秒
+        window.addEventListener('error', function (e) {
+          if (e.target && e.target.tagName === 'SCRIPT') {
+            document.getElementById('old-browser-notice').style.display = 'block';
+            var r0 = document.getElementById('root'); if (r0) r0.style.display = 'none';
+          }
+        }, true);
+        // ③ 10 秒后界面还没渲染出来 → 大概率是旧浏览器解析失败，给出提示
+        //   （实测 4x CPU 降速首屏约 0.9s；6s 在极慢机器+杀软扫描 1MB JS 时有误报风险，放宽到 10s）
+        setTimeout(function () {
+          var r = document.getElementById('root');
+          if (r && r.children.length === 0) {
+            document.getElementById('old-browser-notice').style.display = 'block';
+            r.style.display = 'none';
+          }
+        }, 10000);
+      }
+    </script>
+
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

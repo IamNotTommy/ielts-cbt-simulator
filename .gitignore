@@ -1,0 +1,53 @@
+# ---------- 依赖 ----------
+node_modules/
+.pnp
+.pnp.js
+
+# ---------- 构建产物 ----------
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+coverage/
+
+# ---------- 启动器输出 ----------
+*.exe
+*.pdb
+*.ilk
+
+# ---------- 题包与个人数据（绝不入库） ----------
+导入题目/
+做题记录/
+精读记录/
+精听记录/
+*.zip
+
+# ---------- 日志与临时文件 ----------
+*.log
+启动日志.txt
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- 环境变量与密钥 ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+
+# ---------- 编辑器 / IDE ----------
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+
+# ---------- 本地测试产物 ----------
+smoke-shots/
+smoke-final/
+test-artifacts/
+v2-test-artifacts/
+*.local
