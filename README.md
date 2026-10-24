@@ -18,7 +18,7 @@
 
 ## 下载
 
-不想自己构建的话，到 [Releases](https://github.com/IamNotTommy/ielts-cbt-simulator/releases/latest) 下载 `英语机考模拟器.exe`（Windows 10/11，单文件，无需安装 Node）。
+不想自己构建的话，到 [Releases](https://github.com/IamNotTommy/ielts-cbt-simulator/releases/latest) 下载 `ielts-cbt-simulator-v2.0.0.exe`（Windows 10/11，单文件，无需安装 Node；双击后就是「英语机考模拟器」）。
 
 程序未签名，首次运行前建议先按 [`docs/使用说明.txt`](docs/使用说明.txt) 开头的「解除锁定」步骤处理；也可以直接按下面的步骤从源码构建。
 
