@@ -326,7 +326,7 @@ export default function Home({ demoTest, onStart, onOpenIntensive, onOpenListenL
   /* ---------- 精读 JSON 导入（精读记录区的入口，文件即 精读记录\ 下的单篇格式） ---------- */
   async function handleImportIntensive(file: File) {
     try {
-      const f = normalizeIntensiveImport(JSON.parse(await file.text()));
+      const f = normalizeIntensiveImport(JSON.parse((await file.text()).replace(/^\uFEFF/, '')));
       if (!f) { say('导入被拒：不是合法的精读文件（需要 testId / passageIdx / notes 结构）'); return; }
       const t = findTest(f.testId);
       if (t) {   // 套题名与篇名以本地题库为准补全
@@ -458,7 +458,7 @@ export default function Home({ demoTest, onStart, onOpenIntensive, onOpenListenL
   async function handleImportFile(file: File) {
     setBusy(true);
     try {
-      importJsonObject(JSON.parse(await file.text()), file.name.replace(/\.json$/i, ''));
+      importJsonObject(JSON.parse((await file.text()).replace(/^\uFEFF/, '')), file.name.replace(/\.json$/i, ''));
     } catch (e) {
       say(`导入被拒：JSON 不合法（${(e as Error).message}）`);
     } finally {
@@ -836,22 +836,6 @@ export default function Home({ demoTest, onStart, onOpenIntensive, onOpenListenL
             </section>
           )}
 
-          {importErrors && (
-            <div className="import-error-box">
-              <div className="head">
-                <b>导入被拒 — {importErrors.source}（共 {importErrors.errors.length} 条提示）</b>
-                <button className="notes-close" onClick={() => setImportErrors(null)}>✕</button>
-              </div>
-              {importErrors.errors.map((e, i) => <div key={i}>✗ {e}</div>)}
-            </div>
-          )}
-          {log.length > 0 && (
-            <details className="log-box">
-              <summary>技术详情（{log.length} 条）</summary>
-              {log.map((l, i) => <div key={i}>{l}</div>)}
-            </details>
-          )}
-
           <section className="home-card library-card">
             <h2>
               我的题库 <small>（{tests.length} 套）</small>
@@ -929,6 +913,23 @@ export default function Home({ demoTest, onStart, onOpenIntensive, onOpenListenL
             {tests.length === 0 && <p className="home-empty">还没有题包。把 .zip 题包拖到导入框里就能开始练习了。</p>}
           </section>
         </div>
+      )}
+
+      {/* 导入反馈与错误：新用户首屏也必须能看到，否则第一次导入失败会“毫无反应” */}
+      {importErrors && (
+        <div className="import-error-box">
+          <div className="head">
+            <b>导入被拒 — {importErrors.source}（共 {importErrors.errors.length} 条提示）</b>
+            <button className="notes-close" onClick={() => setImportErrors(null)}>✕</button>
+          </div>
+          {importErrors.errors.map((e, i) => <div key={i}>✗ {e}</div>)}
+        </div>
+      )}
+      {log.length > 0 && (
+        <details className="log-box" open={busy || log.some(l => /失败|被拒|不合法|不完整/.test(l))}>
+          <summary>技术详情（{log.length} 条）</summary>
+          {log.map((l, i) => <div key={i}>{l}</div>)}
+        </details>
       )}
 
       {!newUser && (

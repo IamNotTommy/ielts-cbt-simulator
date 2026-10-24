@@ -22,6 +22,9 @@ export interface PackManifest {
 
 const PASSAGE_RE = /^reading\/passage\d+\.json$/;
 
+/** Windows 记事本 / PowerShell 5.1 常给 JSON 加 UTF-8 BOM；JSON.parse 会把 BOM 当非法字符 */
+const stripBom = (s: string) => (s.charCodeAt(0) === 0xfeff ? s.slice(1) : s);
+
 export interface ImportedPack {
   extracted: ExtractedTest;
   warnings: string[];
@@ -38,7 +41,7 @@ export async function importZip(file: File | Blob): Promise<ImportedPack> {
   if (!mf) throw new Error('缺 manifest.json（不是有效题包）');
   let manifest: PackManifest;
   try {
-    manifest = JSON.parse(await mf.async('string'));
+    manifest = JSON.parse(stripBom(await mf.async('string')));
   } catch {
     throw new Error('manifest.json 不是合法 JSON');
   }
@@ -60,7 +63,7 @@ export async function importZip(file: File | Blob): Promise<ImportedPack> {
   const passages: ExtractedPassage[] = [];
   for (const n of passageFiles) {
     try {
-      const passage: ExtractedPassage = JSON.parse(await zip.file(n)!.async('string'));
+      const passage: ExtractedPassage = JSON.parse(stripBom(await zip.file(n)!.async('string')));
       // 阅读题组的题图（地图/示意图）同样要把 zip 内路径换成 data URL ——
       // 之前只对听力做了这一步，导致阅读的图被静默丢弃（Test 3 阅读 P2 的地图就踩过）。
       for (const g of passage.question_groups ?? []) {
@@ -86,7 +89,7 @@ export async function importZip(file: File | Blob): Promise<ImportedPack> {
     const f = zip.file(n);
     if (f) {
       try {
-        setter(JSON.parse(await f.async('string')));
+        setter(JSON.parse(stripBom(await f.async('string'))));
       } catch {
         throw new Error(`${n} 不是合法 JSON`);
       }
@@ -99,7 +102,7 @@ export async function importZip(file: File | Blob): Promise<ImportedPack> {
 
   // 答案按科存放 + 旧格式迁移
   const readAnswers = (raw: string): Record<string, string> => {
-    const o = JSON.parse(raw);
+    const o = JSON.parse(stripBom(raw));
     return o && typeof o === 'object' && o.items && typeof o.items === 'object' ? o.items : o; // 统一版 items / 旧版平铺
   };
   let answers: Record<string, string> | null = null;
@@ -123,7 +126,7 @@ export async function importZip(file: File | Blob): Promise<ImportedPack> {
     const sections: ExtractedListeningSection[] = [];
     for (const n of secFiles) {
       try {
-        const section: ExtractedListeningSection = JSON.parse(await zip.file(n)!.async('string'));
+        const section: ExtractedListeningSection = JSON.parse(stripBom(await zip.file(n)!.async('string')));
         for (const g of section.question_groups) {
           if (g.figure_image && /^(?:listening|reading)\/[\w.-]+\.png$/i.test(g.figure_image)) {
             const image = zip.file(g.figure_image);
@@ -139,7 +142,7 @@ export async function importZip(file: File | Blob): Promise<ImportedPack> {
     let la: Record<number, string> | null = null;
     const laFile = zip.file('listening/answers.json');
     if (laFile) {
-      const o = JSON.parse(await laFile.async('string'));
+      const o = JSON.parse(stripBom(await laFile.async('string')));
       la = o && typeof o === 'object' && o.items ? o.items : o;
     }
     listening = { sections, answers: la };

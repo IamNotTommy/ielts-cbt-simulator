@@ -106,6 +106,7 @@ src/
 launcher/             C# 单文件启动器与编译脚本
 docs/
   使用说明.txt         面向使用者的完整说明
+  PACK_FORMAT.md       题包格式、字段说明与制作指南
   design/             功能实施规格与 UI 方案（历史设计文档）
   screenshots/        README 截图
 CHANGELOG.md          v1.5 → v2.0 变更记录
@@ -115,7 +116,7 @@ CHANGELOG.md          v1.5 → v2.0 变更记录
 
 仓库**不包含任何题包**。题包是包含听力音频、阅读文章、写作题目和答案的 `.zip` 文件，请使用你自有的、合法取得的内容，从首页导入。
 
-题包格式由 `src/lib/zipPack.ts` 解析，题目抽取提示词见 `src/prompts/extract.md`；功能与数据设计文档在 `docs/design/`。`.gitignore` 默认排除 `导入题目/`、`做题记录/` 等目录，避免误把题包和个人数据提交上去。
+题包格式由 `src/lib/zipPack.ts` 解析；完整的字段说明、最小示例与常见错误见 [`docs/PACK_FORMAT.md`](docs/PACK_FORMAT.md)，题目抽取提示词见 `src/prompts/extract.md`。`.gitignore` 默认排除 `导入题目/`、`做题记录/` 等目录，避免误把题包和个人数据提交上去。
 
 ## 数据位置
 
