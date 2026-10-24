@@ -16,6 +16,12 @@
 | --- | --- |
 | ![成绩页](docs/screenshots/results.png) | ![写作答卷历史](docs/screenshots/writing-history.png) |
 
+## 下载
+
+不想自己构建的话，到 [Releases](https://github.com/IamNotTommy/ielts-cbt-simulator/releases/latest) 下载 `英语机考模拟器.exe`（Windows 10/11，单文件，无需安装 Node）。
+
+程序未签名，首次运行前建议先按 [`docs/使用说明.txt`](docs/使用说明.txt) 开头的「解除锁定」步骤处理；也可以直接按下面的步骤从源码构建。
+
 ## 功能
 
 ### 做题
