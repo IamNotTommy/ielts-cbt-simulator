@@ -1,3 +1,14 @@
+# v2.0.2（macOS 版 + 题包导入修复）
+
+- 新增 `mac/`：macOS 启动器（Python 3 标准库），与 Windows 版功能对等
+  - `launcher.py`：静态文件、`/api/store/*`、`/api/media/*`、`/api/notes/*`、`/api/lnotes/*`、
+    `/api/wordbook`、`/api/lwords`、`/api/pack/*`、`/api/writing/*`、`/api/store/learning`
+  - `启动模拟器.command` / `解除隔离.command`；单实例、端口顺延、Host 校验、原子写、数据目录回退
+  - `build-mac.sh` 生成 `ielts-cbt-simulator-2.0.2-mac.zip`
+- 新增 `docs/PACK_FORMAT.md`：题包结构、字段、最小示例、打包方法与常见错误
+- 修复：题包 JSON 带 UTF-8 BOM 时被误报“不是合法 JSON”
+- 修复：题库为空时导入失败没有任何提示；首屏现在也会显示导入错误与技术详情
+
 # v2.0（大更新：八项学习功能 + UI 改造 + 启动器 v3.4）
 
 按《DeepSeek_功能实施规格.md》与《UI改造与功能规划方案.md》实施，保留原做题状态机与全部既有能力。

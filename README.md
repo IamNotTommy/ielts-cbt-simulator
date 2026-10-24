@@ -18,9 +18,14 @@
 
 ## 下载
 
-不想自己构建的话，到 [Releases](https://github.com/IamNotTommy/ielts-cbt-simulator/releases/latest) 下载 `ielts-cbt-simulator-v2.0.0.exe`（Windows 10/11，单文件，无需安装 Node；双击后就是「英语机考模拟器」）。
+到 [Releases](https://github.com/IamNotTommy/ielts-cbt-simulator/releases/latest) 下载：
 
-程序未签名，首次运行前建议先按 [`docs/使用说明.txt`](docs/使用说明.txt) 开头的「解除锁定」步骤处理；也可以直接按下面的步骤从源码构建。
+- **Windows 10/11**：`ielts-cbt-simulator-v2.0.2.exe`，单文件，无需安装 Node；双击即运行。
+- **macOS 10.15+**：`ielts-cbt-simulator-2.0.2-mac.zip`，解压后双击 `启动模拟器.command`。
+  macOS 通常自带 Python 3；如果没有，先运行 `xcode-select --install`。首次打开如被拦截，
+  右键 `.command` → 打开，或先运行 `解除隔离.command`。详见 [`mac/README.md`](mac/README.md)。
+
+程序未签名，Windows 首次运行建议先按 [`docs/使用说明.txt`](docs/使用说明.txt) 开头的「解除锁定」步骤处理；也可以直接按下面的步骤从源码构建。
 
 ## 功能
 
@@ -95,6 +100,17 @@ powershell -ExecutionPolicy Bypass -File .\build-launcher.ps1 -Dist ..\dist -Out
 
 输出 `英语机考模拟器.exe`，内嵌 `dist/` 全部文件，双击即启动本机 HTTP 服务并打开浏览器。需要 Windows 自带的 .NET Framework 4.x；不需要额外安装任何东西。
 
+### 打包 macOS 版
+
+```bash
+npm run build
+bash mac/build-mac.sh
+# 输出 mac-dist/ielts-cbt-simulator-2.0.2-mac.zip
+```
+
+Mac 版不使用 exe：`mac/launcher.py` 用 Python 3 标准库提供同样的静态文件与 `/api/*` 接口，
+`网页应用/` 直接读磁盘。详见 [`mac/README.md`](mac/README.md)。
+
 ## 目录结构
 
 ```text
@@ -104,6 +120,7 @@ src/
   prompts/            题包抽取提示词
   styles/app-v2.css   v2.0 新增界面样式（as-/sr-/wh-/rv-/vc-/an-/dm-/gs- 前缀）
 launcher/             C# 单文件启动器与编译脚本
+mac/                  macOS 启动器（Python 3）、.command 入口与打包脚本
 docs/
   使用说明.txt         面向使用者的完整说明
   PACK_FORMAT.md       题包格式、字段说明与制作指南
