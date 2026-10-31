@@ -8,7 +8,7 @@ import {
   removeReviewItem, reviewStats, setReviewStatus, skillLabel, statusLabel,
 } from '../lib/review';
 import { loadLearningData } from '../lib/learningStore';
-import ReviewQuestionView from './ReviewQuestionView';
+import ReviewQuestionView, { reviewGroupKey } from './ReviewQuestionView';
 
 interface Props {
   tests: StoredTest[];
@@ -31,6 +31,7 @@ export default function ReviewCenter(p: Props) {
   const [testId, setTestId] = useState<string | typeof ALL>(ALL);
   const [showMastered, setShowMastered] = useState(false);
   const [session, setSession] = useState<{ queue: ReviewItem[]; idx: number } | null>(null);
+  const [completedGroups, setCompletedGroups] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState('');
 
   // 初始筛选只在本轮打开时应用（来自分析页的跳转）
@@ -70,6 +71,7 @@ export default function ReviewCenter(p: Props) {
     const { queue, skippedMissing } = buildReviewSession(filtered, p.tests, 10);
     if (!queue.length) { setNotice('当前筛选下没有可复盘的题。'); return; }
     setNotice(skippedMissing.length ? `有 ${skippedMissing.length} 道题的题包已删除，已跳过。` : '');
+    setCompletedGroups(new Set());
     setSession({ queue, idx: 0 });
     refresh();
   };
@@ -95,10 +97,12 @@ export default function ReviewCenter(p: Props) {
         total={session.queue.length}
         onClose={() => { setSession(null); refresh(); }}
         onNext={() => {
-          if (session.idx < session.queue.length - 1) setSession({ ...session, idx: session.idx + 1 });
+          const nextIdx = session.queue.findIndex((x, i) => i > session.idx && !completedGroups.has(reviewGroupKey(test, x)));
+          if (nextIdx >= 0) setSession({ ...session, idx: nextIdx });
           else setSession(null);
         }}
         onPrev={() => setSession({ ...session, idx: Math.max(0, session.idx - 1) })}
+        onSubmittedGroup={key => setCompletedGroups(prev => new Set(prev).add(key))}
         onChanged={refresh}
         onOpenIntensive={(pi) => p.onOpenIntensive(test, pi)}
         onOpenListenLab={(si) => p.onOpenListenLab(test, si)}

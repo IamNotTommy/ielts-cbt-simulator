@@ -1,6 +1,6 @@
 /** 学习分析看板：Band 趋势 / 正确率趋势 / 题型正确率 / 写作四维 / 错题状态。
  *  所有统计口径见 analytics.ts；图表下方都给文字摘要，颜色不是唯一信息载体。 */
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -15,16 +15,25 @@ import {
 import { REVIEW_TYPE_LABEL, reviewStats } from '../lib/review';
 import { loadLearningData } from '../lib/learningStore';
 
+export interface AnalyticsFilters {
+  range: '30' | '90' | 'all';
+  skill: 'all' | 'reading' | 'listening' | 'writing';
+  testId: string;
+  chartSkill: 'reading' | 'listening';
+}
+
 interface Props {
   records: PracticeRecord[];
   tests: StoredTest[];
+  filters: AnalyticsFilters;
+  onFiltersChange: (filters: AnalyticsFilters) => void;
   onClose: () => void;
   onOpenReview: (skill?: 'reading' | 'listening', type?: QuestionType) => void;
   onOpenWriting: () => void;
 }
 
-type Range = '30' | '90' | 'all';
-type SkillFilter = 'all' | 'reading' | 'listening' | 'writing';
+type Range = AnalyticsFilters['range'];
+type SkillFilter = AnalyticsFilters['skill'];
 
 const fmtDur = (sec: number) => {
   const h = Math.floor(sec / 3600);
@@ -37,10 +46,11 @@ const pct = (v: number) => `${Math.round(v * 100)}%`;
 const ChartEmpty = ({ text }: { text: string }) => <div className="an-empty">{text}</div>;
 
 export default function AnalyticsView(p: Props) {
-  const [range, setRange] = useState<Range>('all');
-  const [skill, setSkill] = useState<SkillFilter>('all');
-  const [testId, setTestId] = useState<string>('all');
-  const [chartSkill, setChartSkill] = useState<'reading' | 'listening'>('reading');
+  const { range, skill, testId, chartSkill } = p.filters;
+  const setRange = (value: Range) => p.onFiltersChange({ ...p.filters, range: value });
+  const setSkill = (value: SkillFilter) => p.onFiltersChange({ ...p.filters, skill: value });
+  const setTestId = (value: string) => p.onFiltersChange({ ...p.filters, testId: value });
+  const setChartSkill = (value: 'reading' | 'listening') => p.onFiltersChange({ ...p.filters, chartSkill: value });
 
   const filtered = useMemo(() => {
     const to = Date.now();
@@ -53,11 +63,12 @@ export default function AnalyticsView(p: Props) {
     });
   }, [p.records, range, skill, testId]);
 
-  const summary = useMemo(() => buildSummary(filtered), [filtered]);
+  const summary = useMemo(() => buildSummary(filtered, skill === 'all' ? undefined : skill), [filtered, skill]);
   const effectiveSkill: 'reading' | 'listening' = skill === 'listening' ? 'listening' : skill === 'reading' ? 'reading' : chartSkill;
-  const bandTrend = useMemo(() => buildBandTrend(filtered, effectiveSkill), [filtered, effectiveSkill]);
-  const accTrend = useMemo(() => buildAccuracyTrend(filtered, effectiveSkill), [filtered, effectiveSkill]);
-  const typeStats = useMemo(() => buildTypeStats(filtered), [filtered]);
+  const trendRecords = skill === 'writing' ? [] : filtered;
+  const bandTrend = useMemo(() => buildBandTrend(trendRecords, effectiveSkill), [trendRecords, effectiveSkill]);
+  const accTrend = useMemo(() => buildAccuracyTrend(trendRecords, effectiveSkill), [trendRecords, effectiveSkill]);
+  const typeStats = useMemo(() => skill === 'writing' ? [] : buildTypeStats(filtered, skill === 'all' ? undefined : skill), [filtered, skill]);
   const writing = useMemo(() => buildWritingDimensionStats(filtered), [filtered]);
   const review = useMemo(() => reviewStats(loadLearningData().reviewItems), []);
 
@@ -190,7 +201,7 @@ export default function AnalyticsView(p: Props) {
                   </ResponsiveContainer>
                 </div>
                 <p className="an-caption">
-                  基于 {accData.length} 场练习、{summary.total} 题（含未答）；{effectiveSkill === 'reading' ? '阅读' : '听力'}单独统计。
+                  基于 {accData.length} 场练习、{accTrend.reduce((n, x) => n + x.total, 0)} 题（含未答）；{effectiveSkill === 'reading' ? '阅读' : '听力'}单独统计。
                 </p>
               </>
             )}

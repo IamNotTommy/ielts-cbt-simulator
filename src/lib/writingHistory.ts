@@ -190,11 +190,12 @@ export function saveRevisionDraft(
     const a = await mustGet(recordId);
     const rev = (a.revisions ?? []).find(r => r.id === revisionId);
     if (!rev) throw new Error(`修改稿不存在：${revisionId}`);
+    const changed = rev.essays[0] !== essays[0] || rev.essays[1] !== essays[1];
     rev.essays = [essays[0], essays[1]];
     rev.wordCounts = [wordCounts[0], wordCounts[1]];
     rev.updatedAt = Date.now();
-    // 已判改后继续编辑：回到 draft，但保留上一版 gradedEssays/grade 作为历史结果
-    if (rev.status === 'graded') rev.status = 'draft';
+    // 只有正文真的变化才降级；判改完成后的普通 flush 不能把 graded 改回 draft
+    if (changed && rev.status === 'graded') rev.status = 'draft';
     a.updatedAt = Date.now();
     await withStore<void>('readwrite', s => s.put(a));
     mirrorWritingPut(a);

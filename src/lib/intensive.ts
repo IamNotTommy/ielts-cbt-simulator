@@ -1,7 +1,7 @@
 /** 精读（划词批注 + 词汇句子册）数据层。
  *  模式与 serverSync 一致：localStorage 为工作缓存，启动器文件夹（精读记录\）为持久层；
  *  每次变更后镜像写回服务器，API 不存在时（备用启动器）静默退化为纯浏览器存储。 */
-import { serverAvailable } from './serverSync';
+import { serverAvailable, reportMirrorError } from './serverSync';
 
 export type IntensiveKind = 'word' | 'sentence';
 
@@ -65,13 +65,14 @@ export function ivKey(testId: string, passageIdx: number): string {
 /* ---- 写操作串行化（与 serverSync 同一思路：避免并发 PUT 相互覆盖） ---- */
 let queue: Promise<void> = Promise.resolve();
 function enqueue(fn: () => Promise<void>): void {
-  queue = queue.then(fn).catch(() => { /* fn 内部已 warn，这里兜底 */ });
+  queue = queue.then(fn).catch(reportMirrorError);
 }
 async function safe(fn: () => Promise<unknown>): Promise<void> {
   try {
-    await fn();
+    const value = await fn();
+    if (value instanceof Response && !value.ok) throw new Error(`精读同步请求失败 HTTP ${value.status}`);
   } catch (e) {
-    console.warn('精读同步到本地文件夹失败：', e);
+    reportMirrorError(e);
   }
 }
 
@@ -107,7 +108,7 @@ export function saveIntensive(file: IntensiveFile): void {
   try { localStorage.setItem(K_PREFIX + key, JSON.stringify(file)); } catch { /* 忽略 */ }
   enqueue(() => safe(async () => {
     if (!(await serverAvailable())) return;
-    await fetch(`/api/notes/${key}`, { method: 'PUT', body: JSON.stringify(file) });
+    return await fetch(`/api/notes/${key}`, { method: 'PUT', body: JSON.stringify(file) });
   }));
   updateWordbookFromFile(file);
 }
@@ -159,7 +160,7 @@ export function deleteIntensive(key: string): void {
   try { localStorage.removeItem(K_PREFIX + key); } catch { /* 忽略 */ }
   enqueue(() => safe(async () => {
     if (!(await serverAvailable())) return;
-    await fetch(`/api/notes/${key}`, { method: 'DELETE' });
+    return await fetch(`/api/notes/${key}`, { method: 'DELETE' });
   }));
   const entries = loadWordbook();
   const kept = entries
@@ -267,7 +268,7 @@ export async function syncWordbookFromServer(): Promise<WordbookEntry[]> {
 function mirrorWordbook(): void {
   enqueue(() => safe(async () => {
     if (!(await serverAvailable())) return;
-    await fetch('/api/wordbook', { method: 'PUT', body: localStorage.getItem(K_WORDBOOK) ?? '[]' });
+    return await fetch('/api/wordbook', { method: 'PUT', body: localStorage.getItem(K_WORDBOOK) ?? '[]' });
   }));
 }
 

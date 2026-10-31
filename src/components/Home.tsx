@@ -22,7 +22,7 @@ import ListenLabPicker from './ListenLabPicker';
 import FlashcardDeck from './FlashcardDeck';
 import ActiveSessionCard from './ActiveSessionCard';
 import ReviewCenter from './ReviewCenter';
-import AnalyticsView from './AnalyticsView';
+import AnalyticsView, { type AnalyticsFilters } from './AnalyticsView';
 import VocabularyCenter from './VocabularyCenter';
 import DataManager from './DataManager';
 import GlobalSearch from './GlobalSearch';
@@ -114,6 +114,9 @@ export default function Home({ demoTest, onStart, onOpenIntensive, onOpenListenL
   const [recTab, setRecTab] = useState<'iv' | 'll'>('iv');             // 学习记录卡内的 tab
   const [showAllRecs, setShowAllRecs] = useState(false);               // 练习记录默认只显示 5 条
   const [panel, setPanel] = useState<Panel>(null);
+  const [analyticsFilters, setAnalyticsFilters] = useState<AnalyticsFilters>({
+    range: 'all', skill: 'all', testId: 'all', chartSkill: 'reading',
+  });
   const [reviewInit, setReviewInit] = useState<{ skill?: 'reading' | 'listening'; type?: QuestionType }>({});
   const [reviewBackTo, setReviewBackTo] = useState<Panel>(null);
   const [reviewSeq, setReviewSeq] = useState(0);
@@ -1192,6 +1195,8 @@ export default function Home({ demoTest, onStart, onOpenIntensive, onOpenListenL
         <AnalyticsView
           records={records}
           tests={tests}
+          filters={analyticsFilters}
+          onFiltersChange={setAnalyticsFilters}
           onClose={() => setPanel(null)}
           onOpenReview={(skill, type) => {
             setReviewInit({ skill, type });

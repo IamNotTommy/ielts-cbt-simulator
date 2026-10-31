@@ -62,7 +62,7 @@ export function AnswerTable({ rows, times, filter = 'all' }: {
   filter?: Filter;
 }) {
   const shown = rows.filter(r => {
-    if (filter === 'wrong') return !r.correct;
+    if (filter === 'wrong') return !r.correct && !r.unanswered;
     if (filter === 'blank') return r.unanswered;
     if (filter === 'flagged') return !!r.flagged;
     return true;

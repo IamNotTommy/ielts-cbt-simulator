@@ -2,7 +2,7 @@
  *  启动器文件夹（精听记录\）为持久层；变更后镜像写回服务器，API 不存在时静默退化。
  *  服务器接口：/api/lnotes（key 列表）、/api/lnotes/<key>（GET/PUT/DELETE 精听文件）、
  *  /api/lwords（GET/PUT 生词本整量）；跟读录音走 /api/media/<testId>/rec_s<section>_<句序号>。 */
-import { serverAvailable } from './serverSync';
+import { serverAvailable, reportMirrorError } from './serverSync';
 import { loadAudio, saveAudio } from './media';
 import { loadLlmConfig } from './store';
 import { parseJsonLoose } from './llm';
@@ -87,13 +87,14 @@ export function emptyState(): LLSentState {
 /* ---- 写操作串行化 ---- */
 let queue: Promise<void> = Promise.resolve();
 function enqueue(fn: () => Promise<void>): void {
-  queue = queue.then(fn).catch(() => { /* fn 内部已 warn，这里兜底 */ });
+  queue = queue.then(fn).catch(reportMirrorError);
 }
 async function safe(fn: () => Promise<unknown>): Promise<void> {
   try {
-    await fn();
+    const value = await fn();
+    if (value instanceof Response && !value.ok) throw new Error(`精听同步请求失败 HTTP ${value.status}`);
   } catch (e) {
-    console.warn('精听同步到本地文件夹失败：', e);
+    reportMirrorError(e);
   }
 }
 
@@ -134,7 +135,7 @@ export function saveListen(file: ListenFile): void {
   try { localStorage.setItem(K_PREFIX + key, JSON.stringify(file)); } catch { /* 忽略 */ }
   enqueue(() => safe(async () => {
     if (!(await serverAvailable())) return;
-    await fetch(`/api/lnotes/${key}`, { method: 'PUT', body: JSON.stringify(file) });
+    return await fetch(`/api/lnotes/${key}`, { method: 'PUT', body: JSON.stringify(file) });
   }));
 }
 
@@ -143,7 +144,7 @@ export function deleteListen(key: string): void {
   try { localStorage.removeItem(K_PREFIX + key); } catch { /* 忽略 */ }
   enqueue(() => safe(async () => {
     if (!(await serverAvailable())) return;
-    await fetch(`/api/lnotes/${key}`, { method: 'DELETE' });
+    return await fetch(`/api/lnotes/${key}`, { method: 'DELETE' });
   }));
 }
 
@@ -223,7 +224,7 @@ function saveLWordsLocal(entries: LWord[]): void {
 function mirrorLWords(): void {
   enqueue(() => safe(async () => {
     if (!(await serverAvailable())) return;
-    await fetch('/api/lwords', { method: 'PUT', body: localStorage.getItem(K_WORDS) ?? '[]' });
+    return await fetch('/api/lwords', { method: 'PUT', body: localStorage.getItem(K_WORDS) ?? '[]' });
   }));
 }
 

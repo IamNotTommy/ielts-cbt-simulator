@@ -170,6 +170,7 @@ function RevisionTab({ record, attempt, onChanged }: {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [err, setErr] = useState('');
   const [gradeBusy, setGradeBusy] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   const [compareTask, setCompareTask] = useState<0 | 1>(0);
   const timer = useRef<number | null>(null);
@@ -222,14 +223,28 @@ function RevisionTab({ record, attempt, onChanged }: {
     }
   }, [record.id]);
 
+  const chooseRevision = async (id: string) => {
+    setSwitching(true);
+    try {
+      await flush();
+      setRevId(id);
+    } finally {
+      setSwitching(false);
+    }
+  };
+
   const createNew = async () => {
     setErr('');
+    setSwitching(true);
     try {
+      await flush();
       const r = await createRevision(record.id);
       setRevId(r.id);
       onChanged();
     } catch (e) {
       setErr(`创建修改稿失败：${(e as Error).message}`);
+    } finally {
+      setSwitching(false);
     }
   };
 
@@ -289,7 +304,7 @@ function RevisionTab({ record, attempt, onChanged }: {
       <div className="wh-rev-bar">
         <label>
           修改稿
-          <select value={revId ?? ''} onChange={e => setRevId(e.target.value)}>
+          <select value={revId ?? ''} onChange={e => { void chooseRevision(e.target.value); }}>
             {revisions.map((r, i) => (
               <option key={r.id} value={r.id}>
                 第 {i + 1} 稿 · {r.status === 'graded' ? '已判改' : r.status === 'grading' ? '判改中' : '草稿'} · {new Date(r.updatedAt).toLocaleDateString()}
@@ -332,6 +347,7 @@ function RevisionTab({ record, attempt, onChanged }: {
               <textarea
                 className="wh-editor"
                 spellCheck={false}
+                disabled={switching || gradeBusy}
                 value={draft[task]}
                 onChange={e => edit(e.target.value)}
                 placeholder="在这里修改作文…"

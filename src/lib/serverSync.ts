@@ -24,8 +24,14 @@ export function serverAvailable(): Promise<boolean> {
 
 /* ---- 写操作串行化：避免并发 PUT 相互覆盖 ---- */
 let queue: Promise<void> = Promise.resolve();
+let mirrorError: string | null = null;
+const noteMirrorError = (e: unknown) => {
+  mirrorError = (e as Error)?.message ?? String(e);
+  console.warn('同步到本地文件夹失败：', e);
+};
+export const reportMirrorError = noteMirrorError;
 function enqueue(fn: () => Promise<void>): void {
-  queue = queue.then(fn).catch(() => { /* 已在 fn 内部 warn，这里兜底 */ });
+  queue = queue.then(fn).catch(noteMirrorError);
 }
 
 /** 供其他数据层复用同一条写队列（学习数据 / 写作答卷镜像） */
@@ -38,16 +44,24 @@ export async function flushServerSync(): Promise<void> {
   let cursor = queue;
   for (;;) {
     await cursor;
-    if (cursor === queue) return;
+    if (cursor === queue) break;
     cursor = queue;
+  }
+  if (mirrorError) {
+    const error = mirrorError;
+    mirrorError = null;
+    throw new Error(error);
   }
 }
 
 async function safe(fn: () => Promise<unknown>): Promise<void> {
   try {
-    await fn();
+    const value = await fn();
+    if (value instanceof Response && !value.ok) {
+      throw new Error(`同步请求失败 HTTP ${value.status}`);
+    }
   } catch (e) {
-    console.warn('同步到本地文件夹失败：', e);
+    noteMirrorError(e);
   }
 }
 
@@ -92,7 +106,7 @@ export async function syncFromServer(): Promise<boolean> {
 export function mirrorTests(): void {
   enqueue(() => safe(async () => {
     if (!(await serverAvailable())) return;
-    await fetch('/api/store/tests', {
+    return await fetch('/api/store/tests', {
       method: 'PUT',
       body: localStorage.getItem(K_TESTS) ?? '[]',
     });
@@ -102,7 +116,7 @@ export function mirrorTests(): void {
 export function mirrorHistory(): void {
   enqueue(() => safe(async () => {
     if (!(await serverAvailable())) return;
-    await fetch('/api/store/history', {
+    return await fetch('/api/store/history', {
       method: 'PUT',
       body: localStorage.getItem(K_HISTORY) ?? '[]',
     });
@@ -130,13 +144,14 @@ export function mirrorMediaPut(key: string, data: Blob | string): Promise<void> 
       try {
         if (!(await serverAvailable())) { res(); return; }
         const blob = typeof data === 'string' ? dataUrlToBlob(data) : data;
-        await fetch(`/api/media/${key}`, {
+        const r = await fetch(`/api/media/${key}`, {
           method: 'PUT',
           headers: { 'X-Mime-Type': blob.type || 'application/octet-stream' },
           body: blob,
         });
+        if (!r.ok) throw new Error(`媒体同步失败 HTTP ${r.status}`);
       } catch (e) {
-        console.warn('同步媒体到本地文件夹失败：', key, e);
+        reportMirrorError(e);
       }
       res();
     });
@@ -146,7 +161,7 @@ export function mirrorMediaPut(key: string, data: Blob | string): Promise<void> 
 export function mirrorMediaDelete(testId: string): void {
   enqueue(() => safe(async () => {
     if (!(await serverAvailable())) return;
-    await fetch(`/api/media/${testId}`, { method: 'DELETE' });
+    return await fetch(`/api/media/${testId}`, { method: 'DELETE' });
   }));
 }
 
@@ -166,7 +181,7 @@ export async function fetchMedia(key: string): Promise<Blob | null> {
 export function uploadPackCopy(fileName: string, file: File | Blob): void {
   enqueue(() => safe(async () => {
     if (!(await serverAvailable())) return;
-    await fetch(`/api/pack/${encodeURIComponent(fileName)}`, {
+    return await fetch(`/api/pack/${encodeURIComponent(fileName)}`, {
       method: 'PUT',
       body: file,
     });
@@ -182,7 +197,7 @@ export function uploadPackCopy(fileName: string, file: File | Blob): void {
 export function mirrorWritingPut(attempt: { recordId: string }): void {
   enqueue(() => safe(async () => {
     if (!(await serverAvailable())) return;
-    await fetch(`/api/writing/${encodeURIComponent(attempt.recordId)}`, {
+    return await fetch(`/api/writing/${encodeURIComponent(attempt.recordId)}`, {
       method: 'PUT',
       body: JSON.stringify(attempt),
     });
@@ -192,7 +207,7 @@ export function mirrorWritingPut(attempt: { recordId: string }): void {
 export function mirrorWritingDelete(recordId: string): void {
   enqueue(() => safe(async () => {
     if (!(await serverAvailable())) return;
-    await fetch(`/api/writing/${encodeURIComponent(recordId)}`, { method: 'DELETE' });
+    return await fetch(`/api/writing/${encodeURIComponent(recordId)}`, { method: 'DELETE' });
   }));
 }
 

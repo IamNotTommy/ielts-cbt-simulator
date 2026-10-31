@@ -20,8 +20,8 @@
 
 到 [Releases](https://github.com/IamNotTommy/ielts-cbt-simulator/releases/latest) 下载：
 
-- **Windows 10/11**：`ielts-cbt-simulator-v2.0.2.exe`，单文件，无需安装 Node；双击即运行。
-- **macOS 10.15+**：`ielts-cbt-simulator-2.0.2-mac.zip`，解压后双击 `启动模拟器.command`。
+- **Windows 10/11**：`ielts-cbt-simulator-v2.0.3.exe`，单文件，无需安装 Node；双击即运行。
+- **macOS 10.15+**：`ielts-cbt-simulator-2.0.3-mac.zip`，解压后双击 `启动模拟器.command`。
   macOS 通常自带 Python 3；如果没有，先运行 `xcode-select --install`。首次打开如被拦截，
   右键 `.command` → 打开，或先运行 `解除隔离.command`。详见 [`mac/README.md`](mac/README.md)。
 
@@ -105,7 +105,7 @@ powershell -ExecutionPolicy Bypass -File .\build-launcher.ps1 -Dist ..\dist -Out
 ```bash
 npm run build
 bash mac/build-mac.sh
-# 输出 mac-dist/ielts-cbt-simulator-2.0.2-mac.zip
+# 输出 mac-dist/ielts-cbt-simulator-2.0.3-mac.zip
 ```
 
 Mac 版不使用 exe：`mac/launcher.py` 用 Python 3 标准库提供同样的静态文件与 `/api/*` 接口，

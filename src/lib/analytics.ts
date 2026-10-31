@@ -137,13 +137,20 @@ export function buildWritingDimensionStats(records: PracticeRecord[]): WritingDi
   return dims.map(d => ({ ...d, avg: d.samples ? sums[d.dim] / d.samples : 0 }));
 }
 
-export function buildSummary(records: PracticeRecord[]): Summary {
+export function buildSummary(records: PracticeRecord[], skill?: 'reading' | 'listening' | 'writing'): Summary {
   let totalSec = 0, correct = 0, total = 0;
   let latestBand: number | null = null;
   let latestBandAt: number | null = null;
   for (const r of records) {
     totalSec += Math.max(0, r.durationSec || 0);
-    for (const s of [r.reading, r.listening]) {
+    if (skill === 'writing') {
+      if (r.writingBand != null && (latestBandAt == null || r.at > latestBandAt)) {
+        latestBand = r.writingBand;
+        latestBandAt = r.at;
+      }
+      continue;
+    }
+    for (const s of skill ? [r[skill]] : [r.reading, r.listening]) {
       if (!s) continue;
       correct += s.score;
       total += s.total;

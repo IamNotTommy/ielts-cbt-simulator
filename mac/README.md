@@ -14,7 +14,7 @@
 
 ## 使用
 
-1. 解压 `ielts-cbt-simulator-2.0.2-mac.zip`，得到 `英语机考模拟器-Mac/` 文件夹。
+1. 解压 `ielts-cbt-simulator-2.0.3-mac.zip`，得到 `英语机考模拟器-Mac/` 文件夹。
 2. 第一次打开如果被 macOS 拦截（“无法验证开发者”）：
    - 右键 `启动模拟器.command` → **打开** → 再点“打开”；或
    - 先双击 `解除隔离.command`（等价于 Windows 版的“解除锁定”）。
@@ -88,7 +88,7 @@ npm run build
 bash mac/build-mac.sh
 ```
 
-输出：`mac-dist/ielts-cbt-simulator-2.0.2-mac.zip`。
+输出：`mac-dist/ielts-cbt-simulator-2.0.3-mac.zip`。
 
 `mac/build-mac.sh` 会把仓库根目录的 `dist/` 复制为 `网页应用/`，再连同
 `launcher.py`、两个 `.command`、使用说明与题包文档一起打包。

@@ -5,7 +5,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
-VERSION="${1:-2.0.2}"
+VERSION="${1:-2.0.3}"
 DIST="$ROOT/dist"
 OUT="$ROOT/mac-dist"
 APP="$OUT/英语机考模拟器-Mac"

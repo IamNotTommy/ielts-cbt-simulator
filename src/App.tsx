@@ -110,6 +110,7 @@ export default function App() {
   /* ---- 全局状态机 ---- */
   const [mode, setMode] = useState<Mode>('reading');
   const [opened, setOpened] = useState(false);
+  const [attemptSeq, setAttemptSeq] = useState(0);
   const [testEnded, setTestEnded] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [submitReview, setSubmitReview] = useState<null | {
@@ -128,7 +129,7 @@ export default function App() {
        · 起点 = 点 OK 开始 / Full length 点 Continue 进入下一段（opened=true 且未交卷）
        · 终点 = 交卷（endTest）；各段之间连续累计，阶段过渡屏不计入
        · Hide（隐藏屏幕）**计入** —— 实考里倒计时本来就在走，屏幕隐藏不等于停考
-       · 开考前等待、成绩单/过渡屏停留不计入；同一浏览器刷新会从刷新后重新起算（见报告口径说明） */
+       · 开考前等待、成绩单/过渡屏停留不计入；累计毫秒写入 active-session，继续练习时接着累计 */
   const clockRef = useRef<{ accMs: number; since: number | null }>({ accMs: 0, since: null });
   const [finalMs, setFinalMs] = useState(0);          // 交卷瞬间定格的累计墙钟（毫秒）
   /** 结算当前墙钟（把正在跑的一段并入累计值并停表），返回累计毫秒 */
@@ -138,6 +139,10 @@ export default function App() {
     return c.accMs;
   };
   const resetClock = () => { clockRef.current = { accMs: 0, since: null }; setFinalMs(0); };
+  const currentElapsedMs = () => {
+    const c = clockRef.current;
+    return c.accMs + (c.since == null ? 0 : Date.now() - c.since);
+  };
   useEffect(() => {
     const c = clockRef.current;
     if (opened && !testEnded) { if (c.since == null) c.since = Date.now(); }
@@ -170,6 +175,7 @@ export default function App() {
   /* ---- 听力 ---- */
   const [lAnswers, setLAnswers] = useState<Record<number, any>>({});
   const [lTimes, setLTimes] = useState<Record<number, number>>({});
+  const [lSection, setLSection] = useState(0);
   const [audioUrls, setAudioUrls] = useState<Record<number, string>>({});
 
   const allListeningSections: Passage[] = useMemo(
@@ -208,6 +214,7 @@ export default function App() {
   } | null>(null);
   /** 本次交卷写入的练习记录 id：判改异步完成后按它回写判改结果/MD 报告（见判改 useEffect） */
   const recordIdRef = useRef<string | null>(null);
+  const gradeRequestRef = useRef(0);
   /** 当前 active-session 的最新快照（供 20 秒 heartbeat 刷新 updatedAt） */
   const sessionMetaRef = useRef<ActiveSessionMeta | null>(null);
 
@@ -215,16 +222,28 @@ export default function App() {
    *  intent='resume' 时按 active-session 恢复范围/阶段/题号；'new' 从第 1 题开始。 */
   const beginTest = (o: { test: StoredTest; session: SessionConfig; gradeWriting: boolean; intent: 'new' | 'resume' }) => {
     const { test: t, gradeWriting, intent } = o;
-    resetClock();                     // 新的一场：墙钟归零（下一场从点 OK 起重新计）
+    const active = intent === 'resume' ? loadActiveSession(t.id) : null;
+    setAttemptSeq(n => n + 1);
+    gradeRequestRef.current += 1;
+    if (intent === 'new') {
+      discardSession(t.id);
+      resetClock();
+      sessionMetaRef.current = null;
+    } else {
+      clockRef.current = { accMs: active?.elapsedMs ?? 0, since: null };
+      setFinalMs(0);
+    }
     setTest(t);
-    clearSessionEnded(t.id);          // 正在开始新一场（或继续），之后留下的作答重新算"进行中"
-    setAnswers(load(tk(t.id, 'answers'), {}));
-    setNotes(load(tk(t.id, 'notes'), []));
-    setHighlights(load(tk(t.id, 'highlights'), []));
-    setEssays(load(tk(t.id, 'essays'), ['', '']));
-    setTimes(load(tk(t.id, 'times'), {}));
-    setLAnswers(load(tk(t.id, 'lanswers'), {}));
-    setLTimes(load(tk(t.id, 'ltimes'), {}));
+    clearSessionEnded(t.id);
+    setAnswers(active ? load(tk(t.id, 'answers'), {}) : {});
+    setNotes(active ? load(tk(t.id, 'notes'), []) : []);
+    setHighlights(active ? load(tk(t.id, 'highlights'), []) : []);
+    setEssays(active ? load(tk(t.id, 'essays'), ['', '']) : ['', '']);
+    setTimes(active ? load(tk(t.id, 'times'), {}) : {});
+    setLAnswers(active ? load(tk(t.id, 'lanswers'), {}) : {});
+    setLTimes(active ? load(tk(t.id, 'ltimes'), {}) : {});
+    setReviewed(active?.reviewed ?? {});
+    setLSection(active?.listeningSection ?? 0);
     setWGrade(null);
     setWGradeState('idle');
     setWGradeMd(null);
@@ -232,9 +251,8 @@ export default function App() {
     setGradeRunId(0);
     setGradeErr('');
     setGradeAsked(false);
-    recordIdRef.current = null;   // 新的一场：尚未交卷，没有可回写的记录
+    recordIdRef.current = null;
 
-    const active = intent === 'resume' ? loadActiveSession(t.id) : null;
     const s = active ? { ...active.config, gradeWriting } : o.session;
     setSession(s);
     const fullWithListening = s.scope === 'full' && !!t.listening?.sections?.length;
@@ -248,7 +266,7 @@ export default function App() {
       setCurrent(active.current);
       setWPart(active.wPart);
       const timer = load<{ secondsLeft?: number } | null>(tk(t.id, 'timer'), null);
-      const untimedPhase = active.untimed || startUntimed;
+      const untimedPhase = active.mode === 'listening' && (active.untimed || startUntimed);
       if (untimedPhase) {
         setSecondsLeft(0);
         setResumeInfo(null);
@@ -262,8 +280,6 @@ export default function App() {
         setResumeInfo(null);
       }
     } else {
-      // 新开一场：先清掉旧 timer，避免旧倒计时被隐式恢复（作答数据由调用方决定是否 discard）
-      localStorage.removeItem(tk(t.id, 'timer'));
       setFullPhase(fullWithListening ? 'listening' : 'reading');
       setMode(s.scope === 'writing' ? 'writing'
         : s.scope === 'listening' || s.scope === 'lsection' || fullWithListening ? 'listening'
@@ -274,12 +290,11 @@ export default function App() {
       setCurrent(1);
       setWPart(0);
     }
-    setReviewed({});
     setReviewMode(false);
     setOpened(false);
     setTestEnded(false);
     setHidden(false);
-    scrollTargetRef.current = null;   // 清掉上一套题遗留的"待滚动题号"，避免开考瞬间自己跳到中间
+    scrollTargetRef.current = null;
   };
 
   /* ---- active-session：结构变化立即写，运行中每 20 秒刷新 updatedAt（不在每秒倒计时里写） ---- */
@@ -298,16 +313,19 @@ export default function App() {
       partIdx,
       wPart,
       untimed: mode === 'listening' && session.listeningMode === 'practice',
+      elapsedMs: currentElapsedMs(),
+      reviewed,
+      listeningSection: lSection,
     };
     sessionMetaRef.current = meta;
     saveActiveSession(meta);
-  }, [screen, test.id, session, mode, fullPhase, current, partIdx, wPart, opened, testEnded]);
+  }, [screen, test.id, session, mode, fullPhase, current, partIdx, wPart, opened, testEnded, reviewed, lSection]);
 
   useEffect(() => {
     if (screen !== 'test' || testEnded || !opened) return;
     const id = window.setInterval(() => {
       const m = sessionMetaRef.current;
-      if (m) saveActiveSession({ ...m, updatedAt: Date.now() });
+      if (m) saveActiveSession({ ...m, elapsedMs: currentElapsedMs(), updatedAt: Date.now() });
     }, 20000);
     return () => window.clearInterval(id);
   }, [screen, opened, testEnded]);
@@ -349,10 +367,12 @@ export default function App() {
   ) : null;
 
   const startTest = (t: StoredTest, s: SessionConfig, intent: 'new' | 'resume' = 'new') => {
-    // 含写作的卷子：判改模型没配全/填错 → 先弹配置窗口；已配好则沿用旧行为自动判改
-    // 判改关闭（WRITING_GRADING=false）时：写作只存档不判改，也绝不弹 API 配置窗口
-    const needAsk = WRITING_GRADING && scopeHasWriting(s) && !graderReady();
-    const gradeWriting = WRITING_GRADING && scopeHasWriting(s) && graderReady();
+    const active = intent === 'resume' ? loadActiveSession(t.id) : null;
+    // 新练习才询问判改配置；继续时沿用 active-session 中已保存的选择。
+    const needAsk = intent === 'new' && WRITING_GRADING && scopeHasWriting(s) && !graderReady();
+    const gradeWriting = intent === 'resume'
+      ? WRITING_GRADING && scopeHasWriting(s) && !!active?.config.gradeWriting && graderReady()
+      : WRITING_GRADING && scopeHasWriting(s) && graderReady();
     setPendingSession({ test: t, session: s, gradeWriting, intent });
     if (needAsk) {
       setGradeModal('pre');   // Home 保持挂载，弹窗叠在首页上；确认后才真正开考
@@ -556,7 +576,7 @@ export default function App() {
 
   /* ---- 计时器持久化：每秒存剩余时间（中途退出可恢复；写 localStorage 开销可忽略） ---- */
   useEffect(() => {
-    if (screen !== 'test' || !opened || testEnded || untimed) return;
+    if (screen !== 'test' || !opened || testEnded || untimed || secondsLeft <= 0) return;
     localStorage.setItem(
       tk(test.id, 'timer'),
       JSON.stringify({ scope: session.scope, mode, fullPhase, secondsLeft, savedAt: Date.now() }),
@@ -741,13 +761,15 @@ export default function App() {
     /* 绑定到"本次交卷"的记录：必须在发起请求前固定下来。
        之后的异步回调只认这个 id，绝不会把结果写进用户重开后另一场练习。 */
     const targetRecordId = recordIdRef.current;
+    const requestId = ++gradeRequestRef.current;
     gradeWriting(slot, items)
       .then(r => {
-        setWGrade(r); setWGradeState('idle'); setGradeAsked(true); setGradeModal(null);
-        // 写作总 Band：与成绩单同一折算口径（Task 2 权重 2/3；只有一篇则取已有篇的平均）
+        const isCurrent = requestId === gradeRequestRef.current;
+        if (isCurrent) {
+          setWGrade(r); setWGradeState('idle'); setGradeAsked(true); setGradeModal(null);
+        }
         const band = writingBandOf(r);
-        // 评分理由 MD 报告：紧接着生成；模型失败 → 本地兜底版，绝不让报告缺失
-        setWGradeMdState('loading');
+        if (isCurrent) setWGradeMdState('loading');
         (async () => {
           let md: string;
           try {
@@ -756,11 +778,13 @@ export default function App() {
             md = buildGradingMdFallback(test.name, r, items.map(it => ({ ...it, wordCount: countWords(it.essay) }))) +
               '\n\n（本报告为离线简版：模型生成详细理由失败）';
           }
-          setWGradeMd(md);
-          setWGradeMdState('idle');
-          // 判改结果/报告回写本次交卷的练习记录 + 写作答卷；两份副本互不阻断
+          if (requestId === gradeRequestRef.current) {
+            setWGradeMd(md);
+            setWGradeMdState('idle');
+          }
+          // 历史始终按 targetRecordId 回写；UI 只更新当前场次
           if (!targetRecordId) {
-            setGradeErr('判改结果未能绑定到练习记录（没有可回写的历史），本次结果只在当前页面显示。');
+            if (requestId === gradeRequestRef.current) setGradeErr('判改结果未能绑定到练习记录（没有可回写的历史），本次结果只在当前页面显示。');
             return;
           }
           try {
@@ -770,11 +794,12 @@ export default function App() {
             await updateOriginalGrade(targetRecordId, r, md, band);
           } catch (e) {
             console.warn('判改结果写回写作答卷失败：', e);
-            setGradeErr('判改结果已写到练习记录，但写作答卷回写失败；可在下次打开时重试判改。');
+            if (requestId === gradeRequestRef.current) setGradeErr('判改结果已写到练习记录，但写作答卷回写失败；可在下次打开时重试判改。');
           }
         })();
       })
       .catch((e: unknown) => {
+        if (requestId !== gradeRequestRef.current) return;
         setWGradeState('error');
         setGradeErr(`判改失败：${(e as Error)?.message ?? '未知错误'}\n请检查 Base URL / API Key / 模型名是否正确，以及该模型是否可用。`);
       });
@@ -846,6 +871,8 @@ export default function App() {
     discardSession(test.id);
     clearActiveSession(test.id);
     sessionMetaRef.current = null;
+    setAttemptSeq(n => n + 1);
+    gradeRequestRef.current += 1;
     setAnswers({});
     setLAnswers({});
     setEssays(['', '']);
@@ -853,6 +880,7 @@ export default function App() {
     setHighlights([]);
     setTimes({});
     setLTimes({});
+    setLSection(0);
     setReviewed({});
     setReviewMode(false);
     resetClock();
@@ -882,6 +910,14 @@ export default function App() {
   const goHome = () => {
     if (opened && !testEnded) {
       if (!confirm('答案已自动保存，返回题库后可以在首页「继续上次练习」里接着做。要现在返回吗？')) return;
+      const m = sessionMetaRef.current;
+      if (m) saveActiveSession({
+        ...m,
+        elapsedMs: currentElapsedMs(),
+        reviewed,
+        listeningSection: lSection,
+        updatedAt: Date.now(),
+      });
     }
     setScreen('home');
   };
@@ -1003,6 +1039,7 @@ export default function App() {
 
       {mode === 'listening' ? (
         <ListeningView
+          key={attemptSeq}
           sections={listeningSections}
           lmode={session.listeningMode ?? (session.scope === 'full' ? 'real' : 'practice')}
           answers={lAnswers}
@@ -1019,6 +1056,8 @@ export default function App() {
           onClearHighlights={clearHighlights}
           audioUrls={audioUrls}
           running={opened && !testEnded}
+          initialSection={lSection}
+          onSectionChange={setLSection}
           onAutoEnd={endTest}
         />
       ) : mode === 'reading' ? (
@@ -1174,7 +1213,7 @@ export default function App() {
           skill={submitReview.skill}
           testName={test.name}
           scopeLabel={scopeLabel}
-          elapsedSec={durationSec}
+          elapsedSec={Math.round(currentElapsedMs() / 1000)}
           fullTransition={submitReview.fullTransition}
           summary={submitReview.summary}
           actionLabel={finishLabel}

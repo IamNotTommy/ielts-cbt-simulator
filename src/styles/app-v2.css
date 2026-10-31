@@ -759,9 +759,47 @@ textarea:focus-visible,
   .sr-modal { width: calc(100vw - 20px); }
   .wh-editor { min-height: 220px; }
   .home-nav button { padding: 8px 8px 9px; font-size: 13px; }
+  .topbar {
+    flex: none;
+    min-height: 54px;
+    height: auto;
+    flex-wrap: wrap;
+    gap: 3px 6px;
+    padding: 4px 8px;
+  }
+  .topbar .mode-tabs { margin-left: 0; flex-wrap: wrap; gap: 4px; }
+  .topbar .mode-tabs button { padding: 3px 9px; }
+  .topbar .timer {
+    position: static;
+    transform: none;
+    margin-left: auto;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .topbar .actions {
+    flex: 1 1 100%;
+    max-width: 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .topbar .actions button { padding: 4px 7px; font-size: 12px; }
+  .topbar .actions .sep { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .as-card, .fc-card-inner, .gs-item { transition: none !important; }
   .gs-panel { animation: none !important; }
+}
+
+/* 1280×720 等矮窗口：压缩开始弹窗，保证「开始练习」按钮首屏可见 */
+@media (max-height: 760px) and (min-width: 900px) {
+  .start-modal { padding: 16px 26px; }
+  .start-modal h2 { margin-bottom: 6px; }
+  .start-sub { margin-bottom: 6px; }
+  .start-group { margin: 9px 0 4px; padding-bottom: 2px; }
+  .start-modal .scope-opt { padding: 6px 12px; }
+  .start-modal .row { margin: 7px 0; }
+  .start-summary { margin-top: 8px; padding: 6px 10px; }
+  .start-modal .affil-note { margin-top: 6px; }
 }

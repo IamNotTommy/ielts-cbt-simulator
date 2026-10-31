@@ -20,6 +20,7 @@ interface Props {
   onNext: () => void;
   onPrev: () => void;
   onChanged: () => void;
+  onSubmittedGroup: (groupKey: string) => void;
   onOpenIntensive: (passageIdx: number) => void;
   onOpenListenLab: (sectionIdx: number) => void;
 }
@@ -28,6 +29,7 @@ interface Located {
   group: QuestionGroup;
   passage: Passage;
   passageIdx: number;
+  key: string;
 }
 
 function locate(test: StoredTest, item: ReviewItem): Located | null {
@@ -35,7 +37,9 @@ function locate(test: StoredTest, item: ReviewItem): Located | null {
     for (let pi = 0; pi < test.passages.length; pi++) {
       const ps = test.passages[pi];
       for (const g of ps.groups ?? []) {
-        if (g.questions.some(q => q.no === item.no)) return { group: g, passage: ps, passageIdx: pi };
+        if (g.questions.some(q => q.no === item.no)) {
+          return { group: g, passage: ps, passageIdx: pi, key: `${item.skill}:${pi}:${g.questions[0]?.no}` };
+        }
       }
     }
     return null;
@@ -44,10 +48,16 @@ function locate(test: StoredTest, item: ReviewItem): Located | null {
   const ps = adaptListening(test.listening.sections, []);
   for (let si = 0; si < ps.length; si++) {
     for (const g of ps[si].groups ?? []) {
-      if (g.questions.some(q => q.no === item.no)) return { group: g, passage: ps[si], passageIdx: si };
+      if (g.questions.some(q => q.no === item.no)) {
+        return { group: g, passage: ps[si], passageIdx: si, key: `${item.skill}:${si}:${g.questions[0]?.no}` };
+      }
     }
   }
   return null;
+}
+
+export function reviewGroupKey(test: StoredTest, item: ReviewItem): string {
+  return locate(test, item)?.key ?? `${item.skill}:${item.testId}:${item.no}`;
 }
 
 export default function ReviewQuestionView(p: Props) {
@@ -56,7 +66,7 @@ export default function ReviewQuestionView(p: Props) {
   const groupKey = located ? `${located.passageIdx}:${located.group.questions[0]?.no}` : '';
   const groupItems = useMemo(
     () => sessionItems.filter(x => x.testId === item.testId && x.skill === item.skill
-      && (locate(test, x)?.group === located?.group)),
+      && (locate(test, x)?.key === located?.key)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [sessionItems, item.testId, item.skill, groupKey],
   );
@@ -118,6 +128,7 @@ export default function ReviewQuestionView(p: Props) {
         if (!r) continue;
         addReviewAttempt(t.id, r.user, r.correct);
       }
+      p.onSubmittedGroup(reviewGroupKey(test, item));
       setPhase('submitted');
       p.onChanged();
     } catch (e) {

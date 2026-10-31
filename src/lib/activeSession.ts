@@ -19,6 +19,9 @@ export interface ActiveSessionMeta {
   partIdx: number;
   wPart: number;
   untimed: boolean;
+  elapsedMs?: number;
+  reviewed?: Record<number, boolean>;
+  listeningSection?: number;
 }
 
 /** 放弃进度时要清理的存档键（不含题库、历史、写作历史、精读/精听、词汇、复盘） */
@@ -75,6 +78,11 @@ export function loadActiveSession(testId: string): ActiveSessionMeta | null {
       partIdx: Math.max(0, num(m.partIdx, 0)),
       wPart: Math.max(0, num(m.wPart, 0)),
       untimed: !!m.untimed,
+      elapsedMs: Math.max(0, num(m.elapsedMs, 0)),
+      reviewed: m.reviewed && typeof m.reviewed === 'object'
+        ? Object.fromEntries(Object.entries(m.reviewed).filter(([, v]) => !!v))
+        : {},
+      listeningSection: Math.max(0, num(m.listeningSection, 0)),
     };
   } catch {
     return null;

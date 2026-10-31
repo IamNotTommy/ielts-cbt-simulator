@@ -57,6 +57,7 @@ function isUntimed(m: ActiveSessionMeta): boolean {
 interface Progress {
   text: string;
   remain: string;
+  position: string;
 }
 
 function progressOf(m: ActiveSessionMeta, test?: StoredTest): Progress {
@@ -97,7 +98,12 @@ function progressOf(m: ActiveSessionMeta, test?: StoredTest): Progress {
       remain = `剩余 ${fmtDuration(c.minutes * 60)}`;
     }
   }
-  return { text, remain };
+  const position = phase === 'writing'
+    ? `Task ${m.wPart + 1}`
+    : phase === 'listening'
+      ? `Section ${(m.listeningSection ?? 0) + 1} · 第 ${m.current} 题`
+      : `Part ${m.partIdx + 1} · 第 ${m.current} 题`;
+  return { text, remain, position };
 }
 
 function whenText(at: number): string {
@@ -125,7 +131,7 @@ function SessionRow({ m, test, expanded, onContinue, onRestart, onDiscard }: {
     return (
       <button className="as-collapsed" onClick={onContinue} title="继续这套练习">
         <b>{test?.name ?? m.testId}</b>
-        <span>{scopeText(m)} · {p.text} · {p.remain}</span>
+        <span>{scopeText(m)} · {p.position} · {p.text} · {p.remain}</span>
         <span className="as-go">继续 →</span>
       </button>
     );
@@ -138,7 +144,7 @@ function SessionRow({ m, test, expanded, onContinue, onRestart, onDiscard }: {
       </div>
       <div className="as-title">{test?.name ?? m.testId}</div>
       <div className="as-meta">
-        {scopeText(m)} · {p.text}
+        {scopeText(m)} · {p.position} · {p.text}
         {p.remain ? ` · ${p.remain}` : ''}
       </div>
       <div className="as-ops">

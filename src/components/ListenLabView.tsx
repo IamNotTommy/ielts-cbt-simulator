@@ -90,6 +90,9 @@ export default function ListenLabView({ test, sectionIdx, onClose, onSwitch }: P
   const [recUrls, setRecUrls] = useState<Record<number, string>>({});
   const [recBusy, setRecBusy] = useState<number | null>(null);
   const [recErr, setRecErr] = useState('');
+  const [mobileSide, setMobileSide] = useState<'left' | 'right' | null>(null);
+  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 860px)').matches);
+  const sideTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const stopAtRef = useRef<number | null>(null);
@@ -103,6 +106,49 @@ export default function ListenLabView({ test, sectionIdx, onClose, onSwitch }: P
   const abBRef = useRef<number | null>(null);
   abARef.current = abA;
   abBRef.current = abB;
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 860px)');
+    const change = () => {
+      setNarrow(mq.matches);
+      if (!mq.matches) setMobileSide(null);
+    };
+    mq.addEventListener('change', change);
+    return () => mq.removeEventListener('change', change);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileSide) return;
+    const drawer = document.getElementById(`ll-${mobileSide}-drawer`);
+    const focusable = () => Array.from(drawer?.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
+    ) ?? []).filter(el => el.getClientRects().length > 0);
+    focusable()[0]?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMobileSide(null);
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      sideTriggerRef.current?.focus();
+    };
+  }, [mobileSide]);
 
   const sentences = file?.sentences ?? [];
   const hasTranscript = !!file?.transcript.trim();
@@ -282,6 +328,7 @@ export default function ListenLabView({ test, sectionIdx, onClose, onSwitch }: P
   /* ---- 快捷键：仅本界面挂载时生效；输入框聚焦时让位 ---- */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (mobileSide) return;
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
       if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
@@ -292,7 +339,7 @@ export default function ListenLabView({ test, sectionIdx, onClose, onSwitch }: P
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioUrl, sentences.length, playing]);
+  }, [audioUrl, sentences.length, playing, mobileSide]);
 
   /* ---- 听写 ---- */
   const submitDictation = (i: number) => {
@@ -456,6 +503,7 @@ export default function ListenLabView({ test, sectionIdx, onClose, onSwitch }: P
   const jumpToSentence = (i: number) => {
     setFilter(null);
     setLeftTab('words-this');
+    setMobileSide(null);
     setCur(i);
     const el = cardEls.current.get(i);
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -651,6 +699,22 @@ export default function ListenLabView({ test, sectionIdx, onClose, onSwitch }: P
         <button className="ll-top-btn" data-ll="open-transcript" onClick={openTranscriptEditor}>
           {hasTranscript ? '编辑原文' : '粘贴原文'}
         </button>
+        {narrow && (
+          <>
+            <button
+              className="ll-top-btn ll-side-toggle"
+              aria-controls="ll-left-drawer"
+              aria-expanded={mobileSide === 'left'}
+              onClick={e => { sideTriggerRef.current = e.currentTarget; setMobileSide(s => s === 'left' ? null : 'left'); }}
+            >生词 / 薄弱句</button>
+            <button
+              className="ll-top-btn ll-side-toggle"
+              aria-controls="ll-right-drawer"
+              aria-expanded={mobileSide === 'right'}
+              onClick={e => { sideTriggerRef.current = e.currentTarget; setMobileSide(s => s === 'right' ? null : 'right'); }}
+            >统计</button>
+          </>
+        )}
         <span className="ll-mode">
           <button className={mode === 'intensive' ? 'on' : ''} data-ll="mode-intensive" onClick={() => setMode('intensive')}>精听</button>
           <button className={mode === 'extensive' ? 'on' : ''} data-ll="mode-extensive" onClick={() => setMode('extensive')}>泛听</button>
@@ -659,7 +723,14 @@ export default function ListenLabView({ test, sectionIdx, onClose, onSwitch }: P
 
       <div className="ll-body">
         {/* ---------- 左栏 ---------- */}
-        <aside className="ll-left">
+        <aside
+          id="ll-left-drawer"
+          className={`ll-left${mobileSide === 'left' ? ' open' : ''}`}
+          role={mobileSide === 'left' ? 'dialog' : undefined}
+          aria-modal={mobileSide === 'left' ? true : undefined}
+          aria-label="生词与薄弱句"
+        >
+          <button className="ll-drawer-close" onClick={() => setMobileSide(null)} aria-label="关闭生词与薄弱句">× 关闭</button>
           <div className="ll-side-tabs">
             <button className={leftTab === 'words-this' ? 'on' : ''} onClick={() => setLeftTab('words-this')}>本篇生词</button>
             <button className={leftTab === 'words-all' ? 'on' : ''} onClick={() => setLeftTab('words-all')}>全部生词</button>
@@ -773,7 +844,14 @@ export default function ListenLabView({ test, sectionIdx, onClose, onSwitch }: P
         </main>
 
         {/* ---------- 右栏：本篇统计 ---------- */}
-        <aside className="ll-right">
+        <aside
+          id="ll-right-drawer"
+          className={`ll-right${mobileSide === 'right' ? ' open' : ''}`}
+          role={mobileSide === 'right' ? 'dialog' : undefined}
+          aria-modal={mobileSide === 'right' ? true : undefined}
+          aria-label="本篇统计"
+        >
+          <button className="ll-drawer-close" onClick={() => setMobileSide(null)} aria-label="关闭本篇统计">× 关闭</button>
           <h3 className="ll-side-h">重听热力</h3>
           <div className="ll-heat" data-ll="heat">
             {(stats?.heat ?? []).map(h => (
@@ -809,6 +887,10 @@ export default function ListenLabView({ test, sectionIdx, onClose, onSwitch }: P
           {recErr && <p className="ll-side-note">{recErr}</p>}
         </aside>
       </div>
+
+      {mobileSide && (
+        <button className="ll-drawer-backdrop" tabIndex={-1} aria-label="关闭侧栏" onClick={() => setMobileSide(null)} />
+      )}
 
       {/* ---------- 底栏播放器（固定悬浮） ---------- */}
       <footer className="ll-player" data-ll="player">

@@ -31,6 +31,8 @@ interface Props {
   onClearHighlights: () => void;
   audioUrls: Record<number, string>;   // section_number → objectURL（每节一个文件）
   running: boolean;                    // 开考 && 未收卷
+  initialSection?: number;
+  onSectionChange?: (index: number) => void;
   onAutoEnd: () => void;               // 实考模式全程播完自动收卷
 }
 
@@ -50,8 +52,9 @@ export default function ListeningView(p: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const [ctx, setCtx] = useState<CtxLocal | null>(null);
-  const [sec, setSec] = useState(0);                    // 当前 section 下标
+  const [sec, setSec] = useState(() => Math.min(p.initialSection ?? 0, Math.max(0, p.sections.length - 1)));
   const [stage, setStage] = useState<Stage>(p.lmode === 'real' ? 'preview' : 'idle');
+  useEffect(() => { p.onSectionChange?.(sec); }, [sec]);
   const [left, setLeft] = useState(PREVIEW_SEC);        // 读题/检查倒计时
   const [playing, setPlaying] = useState(false);
   const [curTime, setCurTime] = useState(0);

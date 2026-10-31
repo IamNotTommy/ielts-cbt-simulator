@@ -25,6 +25,12 @@ import { LEARNING_KEY, loadLearningData, saveLearningData, syncLearningFromServe
 import { SESSION_STORAGE_KEYS } from './activeSession';
 import { loadUiSettings, normalizeUiSettings, saveUiSettings, type UiSettings } from './uiSettings';
 import { flushLocalMirrors } from './mirrorFlush';
+import { mirrorMediaDelete, enqueueApi } from './serverSync';
+
+const deleteRemote = (path: string) => enqueueApi(async () => {
+  const r = await fetch(path, { method: 'DELETE' });
+  if (!r.ok) throw new Error(`删除服务器数据失败 HTTP ${r.status}`);
+});
 
 export interface BackupManifest {
   format: 'ielts-cbt-backup';
@@ -488,19 +494,21 @@ export async function restoreBackup(preview: BackupPreview, opts: RestoreOptions
       for (const k of localLlBefore) localStorage.removeItem(`ielts15-lnote-${k}`);
       const knownTestIds = new Set([
         ...localTestsBefore.map(t => t.id),
+        ...preview.tests.map(t => t.id),
         ...Object.keys(preview.sessions),
       ]);
       for (const id of knownTestIds) {
         for (const what of SESSION_STORAGE_KEYS) localStorage.removeItem(tk(id, what));
+        mirrorMediaDelete(id);
       }
       // 服务器上本地独有的精读/精听文件也一并删除（保持服务器与备份一致）
       const backupIv = new Set(preview.intensive.map(x => x.key));
       const backupLl = new Set(preview.listen.map(x => x.key));
       for (const k of localIvBefore) {
-        if (!backupIv.has(k)) void fetch(`/api/notes/${encodeURIComponent(k)}`, { method: 'DELETE' }).catch(() => {});
+        if (!backupIv.has(k)) deleteRemote(`/api/notes/${encodeURIComponent(k)}`);
       }
       for (const k of localLlBefore) {
-        if (!backupLl.has(k)) void fetch(`/api/lnotes/${encodeURIComponent(k)}`, { method: 'DELETE' }).catch(() => {});
+        if (!backupLl.has(k)) deleteRemote(`/api/lnotes/${encodeURIComponent(k)}`);
       }
       await clearWritingAttempts();
     } catch (e) {
@@ -668,6 +676,9 @@ export async function restoreBackup(preview: BackupPreview, opts: RestoreOptions
         : (decided(plan, 'sessions', testId) ?? (localStorage.getItem(tk(testId, 'active-session')) ? 'keep-current' : 'add'));
       tally('sessions', action);
       if (action === 'keep-current') continue;
+      if (action === 'use-backup') {
+        for (const what of SESSION_STORAGE_KEYS) localStorage.removeItem(tk(testId, what));
+      }
       for (const [what, value] of Object.entries(bag)) {
         if (!(SESSION_KEYS as readonly string[]).includes(what)) continue;
         localStorage.setItem(tk(testId, what), value);
@@ -700,8 +711,8 @@ export async function restoreBackup(preview: BackupPreview, opts: RestoreOptions
   for (const store of ['audio', 'images'] as MediaStore[]) {
     for (const k of await listMediaKeys(store)) localMediaNow.add(`${store}:${k}`);
   }
-  if (mode === 'replace' && !opts.includeMedia) {
-    summary.warnings.push('备份不包含媒体：当前音频、题图与录音已随完整替换移除，且无法从本包恢复。');
+  if (mode === 'replace') {
+    if (!opts.includeMedia) summary.warnings.push('备份不包含媒体：当前音频、题图与录音已随完整替换移除，且无法从本包恢复。');
     await clearAllMedia();
   }
   for (const entry of preview.manifest.media ?? []) {
